@@ -1,0 +1,60 @@
+name: Zig CI and Release
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - 'v*' # Triggers the workflow when a tag like v1.0, v2.3.4 is pushed
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build and Test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          lfs: 'true'
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.172+a11dfaf61
+
+      - name: Build release binary
+        run: zig build -Doptimize=ReleaseSmall -Dtarget=x86_64-linux
+
+      - name: Upload artifact for release job
+        # This step only runs if we are building a tag
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: modextractor-linux-x86_64
+          path: zig-out/bin/modextractor
+
+  release:
+    # This job will only run when a tag is pushed
+    if: startsWith(github.ref, 'refs/tags/')
+    # It depends on the build job to succeed first
+    needs: build
+    runs-on: ubuntu-latest
+    name: Create GitHub Release
+    
+    # Grant permissions to create a release
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v5
+        with:
+          name: modextractor-linux-x86_64
+
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          # The file(s) to upload to the release.
+          # The download-artifact action places the file in the current directory.
+          files: modextractor
