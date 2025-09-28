@@ -116,7 +116,7 @@ if [ -f "$TRIES_FILE" ]; then
     LOADER_ENTRY="${LOADER_ENTRY%.conf}+$TRIES.conf"
 fi
 
-cp -r /usr/lib/linux-image-$KERNEL_VERSION $BOOT_ROOT/dtbs
+cp -rT /usr/lib/linux-image-$KERNEL_VERSION $BOOT_ROOT/dtbs
 
 [ "$KERNEL_INSTALL_VERBOSE" -gt 0 ] && echo "Creating $LOADER_ENTRY"
 {
