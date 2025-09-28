@@ -1,0 +1,7 @@
+#!/bin/sh
+
+workdir=$PWD
+zig build --fetch=all --global-cache-dir /tmp/deps-cache
+cd /tmp && tar -cazf deps-cache.tar.gz deps-cache
+mv /tmp/deps-cache.tar.gz $workdir/debian
+rm -rf /tmp/deps-cache

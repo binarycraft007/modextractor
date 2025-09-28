@@ -2,9 +2,7 @@ const std = @import("std");
 const c = @import("c");
 const mem = std.mem;
 const kmod = @import("kmod");
-
-const binaries = "BINARIES=()\n\n";
-const hooks = "HOOKS=(base udev autodetect modconf keyboard keymap consolefont block filesystems fsck)\n";
+const firmwares_raw = @embedFile("firmwares");
 
 pub fn main() !void {
     var arena_state: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
@@ -51,10 +49,13 @@ pub fn main() !void {
     }
 
     var buffer: [8 * 1024]u8 = undefined;
-    var bw = std.fs.File.stdout().writer(&buffer);
-    const stdout = &bw.interface;
 
-    try stdout.writeAll("MODULES=(\n");
+    var modules_file = try std.fs.createFileAbsolute("/etc/initramfs-tools/modules", .{});
+    defer modules_file.close();
+
+    var modules_bw = modules_file.writer(&buffer);
+    const modules_writer = &modules_bw.interface;
+
     var it = modules.iterator();
     while (it.next()) |mod_name| {
         const name = try std.heap.page_allocator.dupeZ(u8, mod_name.*);
@@ -65,26 +66,28 @@ pub fn main() !void {
         defer info_it.deinit();
         while (info_it.next()) |info| {
             if (mem.eql(u8, info.key(), "firmware")) {
-                const firmware_path = try std.fs.path.join(arena, &.{ "/lib/firmware", info.value() });
-                try files.insert(firmware_path);
+                try files.insert(try arena.dupe(u8, info.value()));
             }
         }
-        try stdout.print("    {s}\n", .{mod_name.*});
+        try modules_writer.print("{s}\n", .{mod_name.*});
     }
-    try stdout.writeAll(")\n\n");
 
-    try stdout.writeAll(binaries);
+    try modules_writer.flush();
 
-    try stdout.writeAll("FILES=(\n");
+    var firmwares_file = try std.fs.createFileAbsolute("/etc/initramfs-tools/hooks/firmwares", .{});
+    defer firmwares_file.close();
+
+    var firmwares_bw = firmwares_file.writer(&buffer);
+    const firmwares_writer = &firmwares_bw.interface;
+
+    try firmwares_writer.writeAll(firmwares_raw);
+
     var files_it = files.iterator();
     while (files_it.next()) |file| {
-        try stdout.print("    {s}\n", .{file.*});
+        try firmwares_writer.print("add_firmware {s}\n", .{file.*});
     }
-    try stdout.writeAll(")\n\n");
 
-    try stdout.writeAll(hooks);
-
-    try stdout.flush();
+    try firmwares_writer.flush();
 }
 
 fn fatal(comptime format: []const u8, args: anytype) noreturn {
@@ -145,8 +148,7 @@ fn findModulesInDtb(arena_state: *std.heap.ArenaAllocator, options: Options) !vo
         if (c.fdt_getprop(fdt.ptr, offset, "firmware-name", null)) |firmware_name| {
             const str_ptr: [*:0]const u8 = @ptrCast(@alignCast(firmware_name));
             const str = mem.sliceTo(str_ptr, 0);
-            const firmware_path = try std.fs.path.join(arena, &.{ "/lib/firmware", str });
-            try options.files.insert(firmware_path);
+            try options.files.insert(try arena.dupe(u8, str));
         }
     }
 }

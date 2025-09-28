@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export ZIG_GLOBAL_CACHE_DIR = $(CURDIR)/debian/zig-cache
+
+override_dh_auto_clean:
+	rm -rf .zig-cache zig-out debian/zig-cache
+
+override_dh_auto_build:
+	mkdir debian/zig-cache
+	cd debian && tar --strip-component=1 -xzvf deps-cache.tar.gz -C zig-cache
+	zig build -Dcpu=baseline -Doptimize=ReleaseSmall
+
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info
+
+%:
+	dh $@
+

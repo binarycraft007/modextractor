@@ -1,0 +1,4 @@
+debian/90-loaderentry-custom.install usr/lib/kernel/install.d/
+debian/install.conf etc/kernel/
+debian/aa-modextractor etc/kernel/postinst.d/
+zig-out/bin/modextractor usr/bin

@@ -2,11 +2,11 @@ name: Zig CI and Release
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "debian" ]
     tags:
       - 'v*' # Triggers the workflow when a tag like v1.0, v2.3.4 is pushed
   pull_request:
-    branches: [ "main" ]
+    branches: [ "debian" ]
 
 jobs:
   build:

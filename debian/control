@@ -1,0 +1,11 @@
+Source: modextractor
+Section: admin
+Priority: optional
+Maintainer: Elliot <keep.it.sns@gmail.com>
+Build-Depends: debhelper-compat (= 13), zig
+Standards-Version: 4.5.0
+
+Package: modextractor
+Architecture: any
+Description: modextractor and kernel install scripts
+ Installs modextractor and scripts for kernel installation.

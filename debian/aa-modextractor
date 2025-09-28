@@ -1,0 +1,6 @@
+#!/bin/sh
+
+set -e
+
+# TODO: make this configurable
+modextractor /lib/modules/$1 /usr/lib/linux-image-$1/qcom/x1e80100-asus-vivobook-s15.dtb 
