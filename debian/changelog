@@ -1,3 +1,9 @@
+modextractor (0.1.1-1) unstable; urgency=medium
+
+  * bug fixes.
+
+ -- Elliot <keep.it.sns@gmail.com>  Sun, 08 Oct 2025 00:00:00 +0000
+
 modextractor (0.1.0-1) unstable; urgency=medium
 
   * Initial release.

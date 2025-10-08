@@ -33,6 +33,9 @@ pub fn main() !void {
     var files: std.BufSet = .init(arena);
     defer files.deinit();
 
+    var fw_base_dirs: std.BufSet = .init(arena);
+    defer fw_base_dirs.deinit();
+
     var kmod_ctx: kmod.Context = try .init(.{ .dirname = module_path, .load_resources = true });
     defer kmod_ctx.deinit();
 
@@ -74,7 +77,7 @@ pub fn main() !void {
 
     try modules_writer.flush();
 
-    var firmwares_file = try std.fs.createFileAbsolute("/etc/initramfs-tools/hooks/firmwares", .{});
+    var firmwares_file = try std.fs.createFileAbsolute("/etc/initramfs-tools/hooks/firmwares", .{ .mode = 0o755 });
     defer firmwares_file.close();
 
     var firmwares_bw = firmwares_file.writer(&buffer);
@@ -84,6 +87,11 @@ pub fn main() !void {
 
     var files_it = files.iterator();
     while (files_it.next()) |file| {
+        const fw_base_dir = std.fs.path.dirname(file.*).?;
+        if (!fw_base_dirs.contains(fw_base_dir)) {
+            try fw_base_dirs.insert(fw_base_dir);
+            try addFirmwaresFromBase(std.heap.page_allocator, firmwares_writer, fw_base_dir, &files);
+        }
         try firmwares_writer.print("add_firmware {s}\n", .{file.*});
     }
 
@@ -95,12 +103,49 @@ fn fatal(comptime format: []const u8, args: anytype) noreturn {
     std.process.exit(1);
 }
 
+fn addFirmwaresFromBase(gpa: mem.Allocator, w: *std.Io.Writer, fw_base_dir: []const u8, files: *std.BufSet) !void {
+    const base_dir_path = try std.fs.path.join(gpa, &.{ "/lib/firmware", fw_base_dir });
+    defer gpa.free(base_dir_path);
+
+    var dir = try std.fs.openDirAbsolute(base_dir_path, .{ .iterate = true });
+    defer dir.close();
+
+    var walker = try dir.walk(gpa);
+    defer walker.deinit();
+
+    while (try walker.next()) |entry| {
+        switch (entry.kind) {
+            .file => {
+                const path = try std.fs.path.join(gpa, &.{ fw_base_dir, entry.path });
+                defer gpa.free(path);
+                if (!files.contains(path)) try w.print("add_firmware {s}\n", .{path});
+            },
+            else => {},
+        }
+    }
+}
+
 const Options = struct {
     dtb_path: []const u8,
     kmod_ctx: *kmod.Context,
     modules: *std.BufSet,
     files: *std.BufSet,
 };
+
+const blacklist = [_][]const u8{
+    "/drm/",
+    "bluetooth",
+    "soundwire",
+};
+
+fn isInBlacklist(path: []const u8) bool {
+    for (blacklist) |pattern| {
+        if (mem.containsAtLeast(u8, path, 1, pattern)) {
+            return true;
+        }
+    }
+    return false;
+}
 
 fn findModulesInDtb(arena_state: *std.heap.ArenaAllocator, options: Options) !void {
     const gpa = arena_state.child_allocator;
@@ -137,10 +182,7 @@ fn findModulesInDtb(arena_state: *std.heap.ArenaAllocator, options: Options) !vo
                 var it = options.kmod_ctx.lookup(modalias) catch continue :inner;
                 defer it.deinit();
                 while (it.next()) |mod| {
-                    // blacklist adsp/cdsp firmwares
-                    if (mem.containsAtLeast(u8, mod.path().?, 1, "remoteproc")) {
-                        continue :outer;
-                    }
+                    if (isInBlacklist(mod.path().?)) continue :outer;
                     try options.modules.insert(try arena.dupe(u8, mod.name()));
                 }
             }
