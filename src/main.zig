@@ -134,8 +134,13 @@ fn findModulesInDtb(arena_state: *std.heap.ArenaAllocator, options: Options) !vo
                 var it = options.kmod_ctx.lookup(modalias) catch continue :inner;
                 defer it.deinit();
                 while (it.next()) |mod| {
+                    defer mod.deinit();
                     // blacklist adsp/cdsp firmwares
+                    if (mod.path() == null) continue :outer;
                     if (mem.containsAtLeast(u8, mod.path().?, 1, "remoteproc")) {
+                        continue :outer;
+                    }
+                    if (mem.containsAtLeast(u8, mod.path().?, 1, "bluetooth")) {
                         continue :outer;
                     }
                     try options.modules.insert(try arena.dupe(u8, mod.name()));
